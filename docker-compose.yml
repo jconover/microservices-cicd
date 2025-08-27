@@ -1,4 +1,4 @@
-version: '3.8'
+# Docker Compose configuration for microservices development
 
 services:
   # API Gateway
@@ -14,6 +14,9 @@ services:
       - USER_SERVICE_URL=http://user-service:8000
       - PAYMENT_SERVICE_URL=http://payment-service:8000
       - NOTIFICATION_SERVICE_URL=http://notification-service:8000
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/node_modules
     networks:
       - microservices-network
     depends_on:
@@ -22,84 +25,154 @@ services:
       - payment-service
       - notification-service
 
-  # Microservices
+  # Auth Service
   auth-service:
-    build: ./services/auth-service
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
     ports:
       - "8001:8000"
     environment:
+      - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/auth_db
       - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=your-secret-key-here
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_DELTA_SECONDS=3600
+    volumes:
+      - ./services/auth-service:/app
     networks:
       - microservices-network
     depends_on:
       - postgres
       - redis
+    command: ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
 
+  # User Service
   user-service:
-    build: ./services/user-service
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
     ports:
       - "8002:8000"
     environment:
+      - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/user_db
       - REDIS_URL=redis://redis:6379/1
+      - AUTH_SERVICE_URL=http://auth-service:8000
+    volumes:
+      - ./services/user-service:/app
     networks:
       - microservices-network
     depends_on:
       - postgres
       - redis
+    command: ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
 
+  # Payment Service
   payment-service:
-    build: ./services/payment-service
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
     ports:
       - "8003:8000"
     environment:
+      - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/payment_db
       - REDIS_URL=redis://redis:6379/2
-    networks:
-      - microservices-network
-    depends_on:
-      - postgres
-      - redis
-
-  notification-service:
-    build: ./services/notification-service
-    ports:
-      - "8004:8000"
-    environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/notification_db
-      - REDIS_URL=redis://redis:6379/3
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-test_key}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-test_secret}
+      - USER_SERVICE_URL=http://user-service:8000
+    volumes:
+      - ./services/payment-service:/app
     networks:
       - microservices-network
     depends_on:
       - postgres
       - redis
       - rabbitmq
+    command: ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
 
-  # Infrastructure Services
+  # Notification Service
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/notification_db
+      - REDIS_URL=redis://redis:6379/3
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-test@example.com}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-test_password}
+    volumes:
+      - ./services/notification-service:/app
+    networks:
+      - microservices-network
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    command: ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+
+  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
+    ports:
+      - "5432:5432"
     environment:
+      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=password
-      - POSTGRES_MULTIPLE_DATABASES=auth_db,user_db,payment_db,notification_db
+      - POSTGRES_DB=postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
     networks:
       - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Redis Cache
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - microservices-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # RabbitMQ Message Broker
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     ports:
+      - "5672:5672"
       - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - microservices-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   microservices-network:
@@ -107,3 +180,5 @@ networks:
 
 volumes:
   postgres_data:
+  redis_data:
+  rabbitmq_data:
