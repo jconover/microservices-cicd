@@ -1,0 +1,14 @@
+{{- range $service := list "auth-service" "user-service" "payment-service" "notification-service" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $service }}
+spec:
+  selector:
+    app: {{ $service }}
+  ports:
+  - port: {{ index $.Values $service "service" "port" }}
+    targetPort: {{ index $.Values $service "service" "port" }}
+  type: {{ index $.Values $service "service" "type" }}
+{{- end }}

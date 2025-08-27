@@ -1,0 +1,28 @@
+# CI/CD Configuration for notification-service
+
+build:notification-service:
+  extends: .microservice_template
+  stage: build
+  script:
+    - cd services/notification-service
+    - docker build --cache-from $LATEST_TAG --tag $IMAGE_TAG --tag $LATEST_TAG .
+    - docker push $IMAGE_TAG
+    - docker push $LATEST_TAG
+  only:
+    - main
+    - develop
+
+test:notification-service:
+  stage: test
+  image: python:3.11-slim
+  script:
+    - cd services/notification-service
+    - pip install -r requirements.txt
+    - pip install pytest pytest-cov
+    - pytest tests/ -v --cov=app --cov-report=xml
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: services/notification-service/coverage.xml

@@ -1,0 +1,55 @@
+global:
+  environment: production
+  image:
+    registry: registry.gitlab.com/yourorg/yourproject
+    pullPolicy: IfNotPresent
+    tag: latest
+
+auth-service:
+  replicaCount: 2
+  image:
+    repository: auth-service
+  service:
+    type: ClusterIP
+    port: 8000
+
+user-service:
+  replicaCount: 2
+  image:
+    repository: user-service
+  service:
+    type: ClusterIP
+    port: 8000
+
+payment-service:
+  replicaCount: 2
+  image:
+    repository: payment-service
+  service:
+    type: ClusterIP
+    port: 8000
+
+notification-service:
+  replicaCount: 2
+  image:
+    repository: notification-service
+  service:
+    type: ClusterIP
+    port: 8000
+
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: changeme
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: changeme
+
+rabbitmq:
+  enabled: true
+  auth:
+    username: rabbitmq
+    password: changeme

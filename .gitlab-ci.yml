@@ -1,0 +1,35 @@
+# GitLab CI/CD Pipeline for Microservices
+variables:
+  DOCKER_REGISTRY: registry.gitlab.com
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  KUBE_NAMESPACE: production
+  DOCKER_BUILDKIT: 1
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+stages:
+  - build
+  - test
+  - security
+  - publish
+  - deploy
+  - rollback
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .cache/pip
+    - venv/
+
+.microservice_template:
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - export SERVICE_NAME=$(echo $CI_JOB_NAME | cut -d':' -f2)
+    - export IMAGE_TAG=$CI_REGISTRY_IMAGE/$SERVICE_NAME:$CI_COMMIT_SHORT_SHA
+    - export LATEST_TAG=$CI_REGISTRY_IMAGE/$SERVICE_NAME:latest
+
+include:
+  - local: '.gitlab/ci/*.yml'

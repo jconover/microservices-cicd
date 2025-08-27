@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+*.cover
+coverage.xml
+*.log
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+# Kubernetes
+*.secret.yaml
+kubeconfig
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
